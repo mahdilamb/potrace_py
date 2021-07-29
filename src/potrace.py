@@ -1018,7 +1018,3 @@ class Potrace:
             f.write(get_svg(size=size))
 
 
-if __name__ == "__main__":
-    from skimage.io import imread
-
-    Potrace(imread("yao.jpg")).to_svg("yao.svg")

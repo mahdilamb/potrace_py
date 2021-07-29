@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+setup.cfg
+src/potrace_py.egg-info/PKG-INFO
+src/potrace_py.egg-info/SOURCES.txt
+src/potrace_py.egg-info/dependency_links.txt
+src/potrace_py.egg-info/top_level.txt
+test/test.py
