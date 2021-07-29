@@ -36,6 +36,7 @@ class Point:
         return Point(self.x, self.y, self._coord.dtype)
 
     def cross(self, p2: 'Point') -> Union[int, float]:
+        # noinspection PyTypeChecker
         return np.cross(self._coord, p2._coord)
 
     def __str__(self) -> str:
@@ -97,23 +98,6 @@ class Bitmap:
 
     def copy(self) -> 'Bitmap':
         return Bitmap(self.data.copy(), check_input=False)
-
-
-@dataclass
-class Quad:
-    data: np.ndarray = field(default_factory=lambda: np.zeros((3, 3)))
-
-    def at(self, x: int, y: int) -> float:
-        return self.data[x, y]
-
-
-def quadform(Q: Quad, w: Point) -> float:
-    v: np.ndarray = np.asarray([w.x, w.y, 1])
-    sum: float = .0
-    for i in range(3):
-        for j in range(3):
-            sum += v[i] * Q.at(i, j) * v[j]
-    return sum
 
 
 def interval(t: float, a: Point, b: Point) -> Point:
@@ -560,6 +544,15 @@ class Potrace:
                 j -= 1
 
         def adjust_vertices(path: Path) -> None:
+
+            def quadform(Q: np.ndarray, w: Point) -> float:
+                v: np.ndarray = np.asarray([w.x, w.y, 1])
+                sum: float = .0
+                for i in range(3):
+                    for j in range(3):
+                        sum += v[i] * Q[i, j] * v[j]
+                return sum
+
             def pointslope(path: Path, i: int, j: int, ctr: int, dir: Point) -> None:
                 n = len(path)
                 sums = path.sums
@@ -619,7 +612,7 @@ class Potrace:
             y0 = path.y0
             ctr = np.zeros(m, dtype=Point)
             dir = np.zeros(m, dtype=Point)
-            q = np.zeros(m, dtype=Quad)
+            q = np.zeros((m, 3, 3))
             v = np.zeros(3)
             s = Point(dtype=float)
 
@@ -632,12 +625,11 @@ class Potrace:
                 dir[i] = Point(dtype=float)
                 pointslope(path, po[i], j, ctr[i], dir[i])
             for i in range(m):
-                q[i] = Quad()
                 d = dir[i].x * dir[i].x + dir[i].y * dir[i].y
                 if d == .0:
                     for j in range(3):
                         for k in range(3):
-                            q[i].data[j, k] = 0
+                            q[i, j, k] = 0
                 else:
                     v[0] = dir[i].y
                     v[1] = -dir[i].x
@@ -646,7 +638,7 @@ class Potrace:
                         for k in range(3):
                             q[i].data[l, k] = v[l] * v[k] / d
             for i in range(m):
-                Q = Quad()
+                Q = np.zeros((3, 3))
                 w = Point(dtype=float)
 
                 s.x = pt[po[i]].x - x0
@@ -656,19 +648,19 @@ class Potrace:
 
                 for l in range(3):
                     for k in range(3):
-                        Q.data[l, k] = q[j].at(l, k) + q[i].at(l, k)
+                        Q.data[l, k] = q[j, l, k] + q[i, l, k]
                 while True:
-                    det = Q.at(0, 0) * Q.at(1, 1) - Q.at(0, 1) * Q.at(1, 0)
+                    det = Q[0, 0] * Q[1, 1] - Q[0, 1] * Q[1, 0]
                     if det != .0:
-                        w.x = (-Q.at(0, 2) * Q.at(1, 1) + Q.at(1, 2) * Q.at(0, 1)) / det
-                        w.y = (Q.at(0, 2) * Q.at(1, 0) - Q.at(1, 2) * Q.at(0, 0)) / det
+                        w.x = (-Q[0, 2] * Q[1, 1] + Q[1, 2] * Q[0, 1]) / det
+                        w.y = (Q[0, 2] * Q[1, 0] - Q[1, 2] * Q[0, 0]) / det
                         break
-                    if Q.at(0, 0) > Q.at(1, 1):
-                        v[0] = -Q.at(0, 1)
-                        v[1] = Q.at(0, 0)
-                    elif Q.at(1, 1):
-                        v[0] = -Q.at(1, 1)
-                        v[1] = Q.at(1, 0)
+                    if Q[0, 0] > Q[1, 1]:
+                        v[0] = -Q[0, 1]
+                        v[1] = Q[0, 0]
+                    elif Q[1, 1]:
+                        v[0] = -Q[1, 1]
+                        v[1] = Q[1, 0]
                     else:
                         v[0] = 1
                         v[1] = 0
@@ -686,10 +678,10 @@ class Potrace:
                 xmin = s.x
                 ymin = s.y
 
-                if Q.at(0, 0) != 0.0:
+                if Q[0, 0] != 0.0:
                     for z in range(2):
                         w.y = s.y - 0.5 + z
-                        w.x = -(Q.at(0, 1) * w.y + Q.at(0, 2)) / Q.at(0, 0)
+                        w.x = -(Q[0, 1] * w.y + Q[0, 2]) / Q[0, 0]
                         dx = abs(w.x - s.x)
                         cand = quadform(Q, w)
                         if dx <= 0.5 and cand < min:
@@ -697,10 +689,10 @@ class Potrace:
                             xmin = w.x
                             ymin = w.y
 
-                if Q.at(1, 1) != 0.0:
+                if Q[1, 1] != 0.0:
                     for z in range(2):
                         w.x = s.x - 0.5 + z
-                        w.y = -(Q.at(1, 0) * w.x + Q.at(1, 2)) / Q.at(1, 1)
+                        w.y = -(Q[1, 0] * w.x + Q[1, 2]) / Q[1, 1]
                         dy = abs(w.y - s.y)
                         cand = quadform(Q, w)
                         if dy <= 0.5 and cand < min:
