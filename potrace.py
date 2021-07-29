@@ -11,14 +11,6 @@ def cyclic(a: Union[int, float], b: Union[int, float], c: Union[int, float]) -> 
     return a <= b or b < c
 
 
-def sign(i: Union[int, float]) -> int:
-    return 1 if i > 0 else -1 if i < 0 else 0
-
-
-def mod(a: int, n: int) -> int:
-    return a % n
-
-
 class Point:
 
     def __init__(self, x: Union[int, float] = 0, y: Union[int, float] = 0, dtype: Type = int):
@@ -129,7 +121,7 @@ def interval(t: float, a: Point, b: Point) -> Point:
 
 
 def dorth_infty(p0: Point, p2: Point, dtype: Type = int) -> Point:
-    return Point(-sign(p2.y - p0.y), sign(p2.x - p0.x), dtype)
+    return Point(-np.sign(p2.y - p0.y), np.sign(p2.x - p0.x), dtype)
 
 
 def ddenom(p0: Point, p2: Point) -> int:
@@ -396,7 +388,7 @@ class Potrace:
             i = n - 1
             while i >= 0:
                 ct[0] = ct[1] = ct[2] = ct[3] = 0
-                dir: int = (3 + 3 * (pt[mod(i + 1, n)].x - pt[i].x) + (pt[mod(i + 1, n)].y - pt[i].y)) // 2
+                dir: int = (3 + 3 * (pt[(i + 1) % n].x - pt[i].x) + (pt[(i + 1) % n].y - pt[i].y)) // 2
                 ct[dir] = ct[dir] + 1
 
                 constraint[0].x = 0
@@ -408,7 +400,7 @@ class Potrace:
                 k1 = i
                 while True:
                     foundk = False
-                    dir = (3 + 3 * sign(pt[k].x - pt[k1].x) + sign(pt[k].y - pt[k1].y)) // 2
+                    dir = (3 + 3 * np.sign(pt[k].x - pt[k1].x) + np.sign(pt[k].y - pt[k1].y)) // 2
                     ct[dir] = ct[dir] + 1
                     if ct[0] and ct[1] and ct[2] and ct[3]:
                         pivk[i] = k1
@@ -436,7 +428,7 @@ class Potrace:
                     if not cyclic(k, i, k1):
                         break
                 if not foundk:
-                    dk = sign(pt[k].x - pt[k1].x), sign(pt[k].y - pt[k1].y)
+                    dk = np.sign(pt[k].x - pt[k1].x), np.sign(pt[k].y - pt[k1].y)
                     cur = pt[k1].x - pt[i].x, pt[k1].y - pt[i].y
 
                     a = constraint[0].cross(Point(*cur))
@@ -451,7 +443,7 @@ class Potrace:
                     if d > 0:
                         j = min(j, np.floor(-c / d))
 
-                    pivk[i] = mod(k1 + j, n)
+                    pivk[i] = (k1 + j) % n
 
                 i -= 1
             j = pivk[n - 1]
@@ -463,7 +455,7 @@ class Potrace:
                 path.lon[i] = j
                 i -= 1
             i = n - 1
-            while cyclic(mod(i + 1, n), j, path.lon[i]):
+            while cyclic((i + 1) % n, j, path.lon[i]):
                 path.lon[i] = j
                 i -= 1
 
@@ -511,9 +503,9 @@ class Potrace:
             seg1 = np.zeros(n + 1, dtype=int)
 
             for i in range(n):
-                c = mod(path.lon[mod(i - 1, n)] - 1, n)
+                c = (path.lon[((i - 1) % n)] - 1) % n
                 if c == i:
-                    c = mod(i + 1, n)
+                    c = (i + 1) % n
 
                 if c < i:
                     clip0[i] = n
@@ -634,8 +626,8 @@ class Potrace:
             path.curve = Curve(m)
 
             for i in range(m):
-                j = po[mod(i + 1, m)]
-                j = mod(j - po[i], n) + po[i]
+                j = po[(i + 1) % m]
+                j = ((j - po[i]) % n) + po[i]
                 ctr[i] = Point(dtype=float)
                 dir[i] = Point(dtype=float)
                 pointslope(path, po[i], j, ctr[i], dir[i])
@@ -660,7 +652,7 @@ class Potrace:
                 s.x = pt[po[i]].x - x0
                 s.y = pt[po[i]].y - y0
 
-                j = mod(i - 1, m)
+                j = (i - 1) % m
 
                 for l in range(3):
                     for k in range(3):
@@ -731,8 +723,8 @@ class Potrace:
             m = path.curve.n
             curve = path.curve
             for i in range(m):
-                j = mod(i + 1, m)
-                k = mod(i + 2, m)
+                j = (i + 1) % m
+                k = (i + 2) % m
                 p4 = interval(1 / 2.0, curve.vertex[k], curve.vertex[j])
                 denom = ddenom(curve.vertex[i], curve.vertex[k])
 
@@ -781,8 +773,8 @@ class Potrace:
                     return 1
 
                 k = i
-                i1 = mod(i + 1, m)
-                k1 = mod(k + 1, m)
+                i1 = (i + 1) % m
+                k1 = (k + 1) % m
                 conv = convc[k1]
 
                 if conv == 0:
@@ -790,20 +782,20 @@ class Potrace:
                 d = ddist(vertex[i], vertex[i1])
                 k = k1
                 while k != j:
-                    k1 = mod(k + 1, m)
-                    k2 = mod(k + 2, m)
+                    k1 = (k + 1) % m
+                    k2 = (k + 2) % m
                     if convc[k1] != conv:
                         return 1
-                    if sign(cprod(vertex[i], vertex[i1], vertex[k1], vertex[k2])) != conv:
+                    if np.sign(cprod(vertex[i], vertex[i1], vertex[k1], vertex[k2])) != conv:
                         return 1
                     if iprod1(vertex[i], vertex[i1], vertex[k1], vertex[k2]) < d * ddist(vertex[k1],
                                                                                          vertex[k2]) * -0.999847695156:
                         return 1
                     k = k1
-                p0 = curve.c[mod(i, m), 2].copy()
-                p1 = vertex[mod(i + 1, m)].copy()
-                p2 = vertex[mod(j, m)].copy()
-                p3 = curve.c[mod(j, m), 2].copy()
+                p0 = curve.c[i % m, 2].copy()
+                p1 = vertex[(i + 1) % m].copy()
+                p2 = vertex[j % m].copy()
+                p3 = curve.c[j % m, 2].copy()
 
                 area = areac[j] - areac[i]
                 area -= dpara(vertex[0], curve.c[i, 2], curve.c[j, 2]) / 2
@@ -835,9 +827,9 @@ class Potrace:
                 p2 = res.c[1].copy()
 
                 res.pen = 0
-                k = mod(i + 1, m)
+                k = (i + 1) % m
                 while k != j:
-                    k1 = mod(k + 1, m)
+                    k1 = (k + 1) % m
                     t = tangent(p0, p1, p2, p3, vertex[k], vertex[k1])
                     if t < -.5:
                         return 1
@@ -858,7 +850,7 @@ class Potrace:
 
                 k = i
                 while k != j:
-                    k1 = mod(k + 1, m)
+                    k1 = (k + 1) % m
                     t = tangent(p0, p1, p2, p3, curve.c[k, 2], curve.c[k1, 2])
                     if t < -0.5:
                         return 1
@@ -897,12 +889,12 @@ class Potrace:
             areac = np.zeros(m + 1, dtype=float)
             for i in range(m):
                 if curve.tag[i] == SegmentTag.CURVE_TO:
-                    convc[i] = sign(dpara(vert[mod(i - 1, m)], vert[i], vert[mod(i + 1, m)]))
+                    convc[i] = np.sign(dpara(vert[(i - 1) % m], vert[i], vert[(i + 1) % m]))
             area = 0.0
             areac[0] = 0.0
             p0 = curve.vertex[0]
             for i in range(m):
-                i1 = mod(i + 1, m)
+                i1 = (i + 1) % m
                 if curve.tag[i1] == SegmentTag.CURVE_TO:
                     alpha = curve.alpha[i1]
                     area += 0.3 * alpha * (4 - alpha) * dpara(curve.c[i, 2], vert[i1], curve.c[i1, 2]) / 2
@@ -919,7 +911,7 @@ class Potrace:
 
                 i = j - 2
                 while i >= 0:
-                    r = opti_penalty(path, i, mod(j, m), o, info.opttolerance, convc,
+                    r = opti_penalty(path, i, (j) % m, o, info.opttolerance, convc,
                                      areac)
                     if r:
                         break
@@ -939,22 +931,22 @@ class Potrace:
             i = om - 1
             while i >= 0:
                 if pt[j] == j - 1:
-                    ocurve.tag[i] = curve.tag[mod(j, m)]
-                    ocurve.c[i, 0] = curve.c[mod(j, m), 0]
-                    ocurve.c[i, 1] = curve.c[mod(j, m), 1]
-                    ocurve.c[i, 2] = curve.c[mod(j, m), 2]
-                    ocurve.vertex[i] = curve.vertex[mod(j, m)]
-                    ocurve.alpha[i] = curve.alpha[mod(j, m)]
-                    ocurve.alpha0[i] = curve.alpha0[mod(j, m)]
-                    ocurve.beta[i] = curve.beta[mod(j, m)]
+                    ocurve.tag[i] = curve.tag[(j) % m]
+                    ocurve.c[i, 0] = curve.c[(j) % m, 0]
+                    ocurve.c[i, 1] = curve.c[(j) % m, 1]
+                    ocurve.c[i, 2] = curve.c[(j) % m, 2]
+                    ocurve.vertex[i] = curve.vertex[(j) % m]
+                    ocurve.alpha[i] = curve.alpha[(j) % m]
+                    ocurve.alpha0[i] = curve.alpha0[(j) % m]
+                    ocurve.beta[i] = curve.beta[(j) % m]
                     s[i] = t[i] = 1.0
                 else:
                     ocurve.tag[i] = SegmentTag.CURVE_TO
                     ocurve.c[i, 0] = opt[j].c[0]
                     ocurve.c[i, 1] = opt[j].c[1]
-                    ocurve.c[i, 2] = curve.c[mod(j, m), 2]
-                    ocurve.vertex[i] = interval(opt[j].s, curve.c[mod(j, m), 2],
-                                                vert[mod(j, m)])
+                    ocurve.c[i, 2] = curve.c[(j) % m, 2]
+                    ocurve.vertex[i] = interval(opt[j].s, curve.c[(j) % m, 2],
+                                                vert[(j) % m])
                     ocurve.alpha[i] = opt[j].alpha
                     ocurve.alpha0[i] = opt[j].alpha
                     s[i] = opt[j].s
@@ -963,7 +955,7 @@ class Potrace:
                 i -= 1
 
             for i in range(om):
-                i1 = mod(i + 1, om)
+                i1 = (i + 1) % om
                 ocurve.beta[i] = s[i] / (s[i] + t[i1])
             ocurve.alphacurve = 1
             path.curve = ocurve
