@@ -4,54 +4,14 @@ from typing import Tuple, Optional, List, Union, Type
 
 import numpy as np
 
+from src.common import Bitmap, Path, Curve, SegmentTag
+from src.io.svg import SVGWriter
+
 
 def cyclic(a: Union[int, float], b: Union[int, float], c: Union[int, float]) -> bool:
     if a <= c:
         return a <= b < c
     return a <= b or b < c
-
-
-class Point:
-
-    def __init__(self, x: Union[int, float] = 0, y: Union[int, float] = 0, dtype: Type = int):
-        self._coord: np.ndarray = np.array((x, y), dtype=dtype)
-
-    @property
-    def x(self) -> Union[int, float]:
-        return self._coord[0]
-
-    @property
-    def y(self) -> Union[int, float]:
-        return self._coord[1]
-
-    @x.setter
-    def x(self, x: Union[int, float]) -> None:
-        self._coord[0] = x
-
-    @y.setter
-    def y(self, y: Union[int, float]) -> None:
-        self._coord[1] = y
-
-    def copy(self) -> 'Point':
-        return Point(self.x, self.y, self._coord.dtype)
-
-    def cross(self, p2: 'Point') -> Union[int, float]:
-        # noinspection PyTypeChecker
-        return np.cross(self._coord, p2._coord)
-
-    def __str__(self) -> str:
-        return "Point {{x={x}, y={y}}}".format(x=self.x, y=self.y)
-
-    def __repr__(self) -> str:
-        return "({x}, {y})".format(x=self.x, y=self.y)
-
-    def __eq__(self, other: 'Point') -> bool:
-        return isinstance(other, Point) and np.array_equal(self._coord, other._coord)
-
-
-class SegmentTag(Enum):
-    CURVE_TO: int = 1
-    CORNER: int = 2
 
 
 class TurnPolicy(Enum):
@@ -63,104 +23,66 @@ class TurnPolicy(Enum):
     MAJORITY: int = 5
 
 
-_rgb_gray_scale: np.ndarray = np.asarray([0.2126, 0.7153, 0.0721])
+def interval(t: float, a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    return np.array((a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])))
 
 
-class Bitmap:
-    def __init__(self, img: np.ndarray, check_input: bool = True):
-        if check_input:
-            if img.ndim not in [2, 3]:
-                raise Exception("Image must be grayscale or RBG(A)")
-            if img.ndim == 3:
-                if img.shape[-1] == 4:
-                    img = img[..., 0:3]
-                img = np.dot(img, _rgb_gray_scale)
-            if img.dtype != bool:
-                img = img < 128
-        self.data = img
-        self.h, self.w = img.shape
-        self.size = img.size
-
-    def range_check(self, x: int, y: int) -> bool:
-        return 0 <= x < self.w and 0 <= y < self.h
-
-    def at(self, x: int, y: int) -> bool:
-        return self.range_check(x, y) and self.data[y, x]
-
-    def index(self, i: int) -> Point:
-        y: int = int(i / self.w)
-        return Point(i - y * self.w, y)
-
-    def flip(self, x: int, y: int) -> None:
-        if not self.range_check(x, y):
-            return
-        self.data[y, x] = ~ self.data[y, x]
-
-    def copy(self) -> 'Bitmap':
-        return Bitmap(self.data.copy(), check_input=False)
+def dorth_infty(p0: np.ndarray, p2: np.ndarray, dtype: Type = int) -> np.ndarray:
+    return np.array((-np.sign(p2[1] - p0[1]), np.sign(p2[0] - p0[0])), dtype)
 
 
-def interval(t: float, a: Point, b: Point) -> Point:
-    return Point(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y), float)
+def ddenom(p0: np.ndarray, p2: np.ndarray) -> int:
+    r: np.ndarray = dorth_infty(p0, p2)
+    return r[1] * (p2[0] - p0[0]) - r[0] * (p2[1] - p0[1])
 
 
-def dorth_infty(p0: Point, p2: Point, dtype: Type = int) -> Point:
-    return Point(-np.sign(p2.y - p0.y), np.sign(p2.x - p0.x), dtype)
-
-
-def ddenom(p0: Point, p2: Point) -> int:
-    r: Point = dorth_infty(p0, p2)
-    return r.y * (p2.x - p0.x) - r.x * (p2.y - p0.y)
-
-
-def dpara(p0: Point, p1: Point, p2: Point) -> int:
-    x1 = p1.x - p0.x;
-    y1 = p1.y - p0.y;
-    x2 = p2.x - p0.x;
-    y2 = p2.y - p0.y;
+def dpara(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray) -> int:
+    x1 = p1[0] - p0[0]
+    y1 = p1[1] - p0[1]
+    x2 = p2[0] - p0[0]
+    y2 = p2[1] - p0[1]
     return x1 * y2 - x2 * y1
 
 
-def cprod(p0: Point, p1: Point, p2: Point, p3: Point) -> int:
-    x1: int = p1.x - p0.x
-    y1: int = p1.y - p0.y
-    x2: int = p3.x - p2.x
-    y2: int = p3.y - p2.y
+def cprod(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> int:
+    x1: int = p1[0] - p0[0]
+    y1: int = p1[1] - p0[1]
+    x2: int = p3[0] - p2[0]
+    y2: int = p3[1] - p2[1]
 
     return x1 * y2 - x2 * y1
 
 
-def iprod(p0: Point, p1: Point, p2: Point) -> int:
-    x1: int = p1.x - p0.x
-    y1: int = p1.y - p0.y
-    x2: int = p2.x - p0.x
-    y2: int = p2.y - p0.y
+def iprod(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray) -> int:
+    x1: int = p1[0] - p0[0]
+    y1: int = p1[1] - p0[1]
+    x2: int = p2[0] - p0[0]
+    y2: int = p2[1] - p0[1]
     return x1 * x2 + y1 * y2
 
 
-def iprod1(p0: Point, p1: Point, p2: Point, p3: Point) -> int:
-    x1: int = p1.x - p0.x
-    y1: int = p1.y - p0.y
-    x2: int = p3.x - p2.x
-    y2: int = p3.y - p2.y
+def iprod1(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> int:
+    x1: int = p1[0] - p0[0]
+    y1: int = p1[1] - p0[1]
+    x2: int = p3[0] - p2[0]
+    y2: int = p3[1] - p2[1]
 
     return x1 * x2 + y1 * y2
 
 
-def ddist(p: Point, q: Point) -> float:
-    return np.sqrt((p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y))
+def ddist(p: np.ndarray, q: np.ndarray) -> float:
+    return np.sqrt((p[0] - q[0]) * (p[0] - q[0]) + (p[1] - q[1]) * (p[1] - q[1]))
 
 
-def bezier(t: float, p0: Point, p1: Point, p2: Point, p3: Point) -> Point:
+def bezier(t: float, p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> np.ndarray:
     s: float = 1 - t
-    return Point(
-        s * s * s * p0.x + 3 * (s * s * t) * p1.x + 3 * (t * t * s) * p2.x + t * t * t * p3.x,
-        s * s * s * p0.y + 3 * (s * s * t) * p1.y + 3 * (t * t * s) * p2.y + t * t * t * p3.y,
-        float
+    return np.array((
+        s * s * s * p0[0] + 3 * (s * s * t) * p1[0] + 3 * (t * t * s) * p2[0] + t * t * t * p3[0],
+        s * s * s * p0[1] + 3 * (s * s * t) * p1[1] + 3 * (t * t * s) * p2[1] + t * t * t * p3[1])
     )
 
 
-def tangent(p0: Point, p1: Point, p2: Point, p3: Point, q0: Point, q1: Point) -> float:
+def tangent(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray, q0: np.ndarray, q1: np.ndarray) -> float:
     A: int = cprod(p0, p1, q0, q1)
     B: int = cprod(p1, p2, q0, q1)
     C: int = cprod(p2, p3, q0, q1)
@@ -183,47 +105,6 @@ def tangent(p0: Point, p1: Point, p2: Point, p3: Point, q0: Point, q1: Point) ->
         return r2
     else:
         return -1.0
-
-
-@dataclass
-class Curve:
-    n: int
-    alphaCurve: float = 0
-    tag: Optional[np.ndarray] = None
-    c: Optional[np.ndarray] = None
-    vertex: Optional[np.ndarray] = None
-    alpha: Optional[np.ndarray] = None
-    alpha0: Optional[np.ndarray] = None
-    beta: Optional[np.ndarray] = None
-
-    def __post_init__(self):
-        self.tag = np.zeros(self.n, dtype=SegmentTag)
-        self.c = np.zeros((self.n, 3), dtype=Point)
-        self.vertex = np.zeros(self.n, dtype=Point)
-        self.alpha = np.zeros(self.n)
-        self.alpha0 = np.zeros(self.n)
-        self.beta = np.zeros(self.n)
-
-
-@dataclass
-class Path:
-    area: int = 0
-    sign: int = 0
-    pt: List[Point] = field(default_factory=list)
-    x0: int = -1
-    y0: int = -1
-    minX: int = 100000
-    minY: int = 100000
-    maxX: int = -1
-    maxY: int = -1
-    sums: Optional[np.ndarray] = None
-    lon: Optional[np.ndarray] = None
-    po: Optional[np.ndarray] = None
-    m: int = -1
-    curve: Optional[Curve] = None
-
-    def __len__(self):
-        return len(self.pt)
 
 
 class Potrace:
@@ -269,10 +150,10 @@ class Potrace:
                 return 0
 
             def xorPath(bm1: Bitmap, path: Path) -> None:
-                y1 = path.pt[0].y
+                y1 = path.pt[0][1]
                 for p in path.pt[1:]:
-                    x: int = p.x
-                    y: int = p.y
+                    x: int = p[0]
+                    y: int = p[1]
                     if y != y1:
                         minY: int = min(y1, y)
                         for j in range(x, path.maxX):
@@ -288,7 +169,7 @@ class Potrace:
 
                 path.sign = +1 if bm.at(x, y) else -1
                 while True:
-                    path.pt.append(Point(x, y))
+                    path.pt.append(np.array((x, y)))
                     path.minX = min(x, path.minX)
                     path.maxX = max(x, path.maxX)
                     path.minY = min(y, path.minY)
@@ -341,13 +222,13 @@ class Potrace:
             return pathlist
 
         def calc_sums(path: Path) -> None:
-            path.x0 = path.pt[0].x
-            path.y0 = path.pt[0].y
+            path.x0 = path.pt[0][0]
+            path.y0 = path.pt[0][1]
 
             s = path.sums = np.zeros((len(path.pt) + 1, 5), dtype=int)
             for i in range(len(path.pt)):
-                x = path.pt[i].x - path.x0
-                y = path.pt[i].y - path.y0
+                x = path.pt[i][0] - path.x0
+                y = path.pt[i][1] - path.y0
                 s[i + 1] = s[i][0] + x, s[i][1] + y, s[i][2] + x * y, s[i][3] + x * x, s[i][4] + y * y
 
         def calc_lon(path: Path) -> None:
@@ -357,7 +238,7 @@ class Potrace:
             nc = np.zeros(n, dtype=int)
             ct = np.zeros(4, dtype=int)
             path.lon = np.zeros(n)
-            constraint = [Point(), Point()]
+            constraint = [np.zeros((2)), np.zeros((2))]
             cur = 0, 0
             off = 0, 0
             dk = 0, 0
@@ -365,60 +246,60 @@ class Potrace:
             i: int = n - 1
             k: int = 0
             while i >= 0:
-                if pt[i].x != pt[k].x and pt[i].y != pt[k].y:
+                if pt[i][0] != pt[k][0] and pt[i][1] != pt[k][1]:
                     k = i + 1
                 nc[i] = k
                 i -= 1
             i = n - 1
             while i >= 0:
                 ct[0] = ct[1] = ct[2] = ct[3] = 0
-                dir: int = (3 + 3 * (pt[(i + 1) % n].x - pt[i].x) + (pt[(i + 1) % n].y - pt[i].y)) // 2
+                dir: int = (3 + 3 * (pt[(i + 1) % n][0] - pt[i][0]) + (pt[(i + 1) % n][1] - pt[i][1])) // 2
                 ct[dir] = ct[dir] + 1
 
-                constraint[0].x = 0
-                constraint[0].y = 0
-                constraint[1].x = 0
-                constraint[1].y = 0
+                constraint[0][0] = 0
+                constraint[0][1] = 0
+                constraint[1][0] = 0
+                constraint[1][1] = 0
 
                 k = nc[i]
                 k1 = i
                 while True:
                     foundk = False
-                    dir = (3 + 3 * np.sign(pt[k].x - pt[k1].x) + np.sign(pt[k].y - pt[k1].y)) // 2
+                    dir = (3 + 3 * np.sign(pt[k][0] - pt[k1][0]) + np.sign(pt[k][1] - pt[k1][1])) // 2
                     ct[dir] = ct[dir] + 1
                     if ct[0] and ct[1] and ct[2] and ct[3]:
                         pivk[i] = k1
                         foundk = True
                         break
-                    cur = pt[k].x - pt[i].x, pt[k].y - pt[i].y
-                    if constraint[0].cross(Point(*cur)) < 0 or constraint[1].cross(Point(*cur)) > 0:
+                    cur = pt[k][0] - pt[i][0], pt[k][1] - pt[i][1]
+                    if np.cross(constraint[0], np.asarray(cur)) < 0 or np.cross(constraint[1], np.asarray(cur)) > 0:
                         break
                     if abs(cur[0]) <= 1 and abs(cur[1]) <= 1:
                         pass
                     else:
                         off = cur[0] + (1 if (cur[1] >= 0 and (cur[1] > 0 or cur[0] < 0)) else -1), cur[1] + (
                             1 if (cur[0] <= 0 and (cur[0] < 0 or cur[1] < 0)) else -1)
-                        if constraint[0].cross(Point(*off)) >= 0:
-                            constraint[0].x = off[0]
-                            constraint[0].y = off[1]
+                        if np.cross(constraint[0], np.asarray(off)) >= 0:
+                            constraint[0][0] = off[0]
+                            constraint[0][1] = off[1]
 
                         off = cur[0] + (1 if (cur[1] <= 0 and (cur[1] < 0 or cur[0] < 0)) else -1), cur[1] + (
                             1 if (cur[0] >= 0 and (cur[0] > 0 or cur[1] < 0)) else -1)
-                        if constraint[1].cross(Point(*off)) <= 0:
-                            constraint[1].x = off[0]
-                            constraint[1].y = off[1]
+                        if np.cross(constraint[1], np.asarray(off)) <= 0:
+                            constraint[1][0] = off[0]
+                            constraint[1][1] = off[1]
                     k1 = k
                     k = nc[k1]
                     if not cyclic(k, i, k1):
                         break
                 if not foundk:
-                    dk = np.sign(pt[k].x - pt[k1].x), np.sign(pt[k].y - pt[k1].y)
-                    cur = pt[k1].x - pt[i].x, pt[k1].y - pt[i].y
+                    dk = np.sign(pt[k][0] - pt[k1][0]), np.sign(pt[k][1] - pt[k1][1])
+                    cur = pt[k1][0] - pt[i][0], pt[k1][1] - pt[i][1]
 
-                    a = constraint[0].cross(Point(*cur))
-                    b = constraint[0].cross(Point(*dk))
-                    c = constraint[1].cross(Point(*cur))
-                    d = constraint[1].cross(Point(*dk))
+                    a = np.cross(constraint[0], np.asarray(cur))
+                    b = np.cross(constraint[0], np.asarray(dk))
+                    c = np.cross(constraint[1], np.asarray(cur))
+                    d = np.cross(constraint[1], np.asarray(dk))
 
                     j = 10000000
                     if b < 0:
@@ -446,7 +327,7 @@ class Potrace:
         def best_polygon(path: Path) -> None:
             def penalty3(path: Path, i: int, j: int) -> float:
                 n: int = len(path)
-                pt: List[Point] = path.pt
+                pt: List[np.ndarray] = path.pt
                 sums = path.sums
 
                 r: int = 0
@@ -465,10 +346,10 @@ class Potrace:
                 else:
                     x, y, xy, x2, y2 = sums[j + 1] - sums[i] + sums[n]
                     k = j + 1 - i + n
-                px = (pt[i].x + pt[j].x) / 2.0 - pt[0].x
-                py = (pt[i].y + pt[j].y) / 2.0 - pt[0].y
-                ey = (pt[j].x - pt[i].x)
-                ex = -(pt[j].y - pt[i].y)
+                px = (pt[i][0] + pt[j][0]) / 2.0 - pt[0][0]
+                py = (pt[i][1] + pt[j][1]) / 2.0 - pt[0][1]
+                ey = (pt[j][0] - pt[i][0])
+                ex = -(pt[j][1] - pt[i][1])
 
                 a = ((x2 - 2 * x * px) / k + px * px)
                 b = ((xy - x * py - y * px) / k + px * py)
@@ -545,15 +426,15 @@ class Potrace:
 
         def adjust_vertices(path: Path) -> None:
 
-            def quadform(Q: np.ndarray, w: Point) -> float:
-                v: np.ndarray = np.asarray([w.x, w.y, 1])
+            def quadform(Q: np.ndarray, w: np.ndarray) -> float:
+                v: np.ndarray = np.asarray([w[0], w[1], 1])
                 sum: float = .0
                 for i in range(3):
                     for j in range(3):
                         sum += v[i] * Q[i, j] * v[j]
                 return sum
 
-            def pointslope(path: Path, i: int, j: int, ctr: int, dir: Point) -> None:
+            def pointslope(path: Path, i: int, j: int, ctr: np.ndarray, dir: np.ndarray) -> None:
                 n = len(path)
                 sums = path.sums
                 r = 0
@@ -578,8 +459,8 @@ class Potrace:
 
                 k = j + 1 - i + r * n
 
-                ctr.x = x / k
-                ctr.y = y / k
+                ctr[0] = x / k
+                ctr[1] = y / k
 
                 a = (x2 - x * x / k) / k
                 b = (xy - x * y / k) / k
@@ -592,17 +473,17 @@ class Potrace:
                 if abs(a) >= abs(c):
                     l = np.sqrt(a * a + b * b)
                     if l != 0:
-                        dir.x = -b / l
-                        dir.y = a / l
+                        dir[0] = -b / l
+                        dir[1] = a / l
 
                 else:
                     l = np.sqrt(c * c + b * b)
                     if l != 0:
-                        dir.x = -c / l
-                        dir.y = b / l
+                        dir[0] = -c / l
+                        dir[1] = b / l
 
                 if l == 0:
-                    dir.x = dir.y = 0
+                    dir[0] = dir[1] = 0
 
             m = path.m
             po = path.po
@@ -610,39 +491,39 @@ class Potrace:
             pt = path.pt
             x0 = path.x0
             y0 = path.y0
-            ctr = np.zeros(m, dtype=Point)
-            dir = np.zeros(m, dtype=Point)
+            ctr = np.zeros((m, 2))
+            dir = np.zeros((m, 2))
             q = np.zeros((m, 3, 3))
             v = np.zeros(3)
-            s = Point(dtype=float)
+            s = np.zeros(2)
 
             path.curve = Curve(m)
 
             for i in range(m):
                 j = po[(i + 1) % m]
                 j = ((j - po[i]) % n) + po[i]
-                ctr[i] = Point(dtype=float)
-                dir[i] = Point(dtype=float)
+                ctr[i] = np.zeros(2)
+                dir[i] = np.zeros(2)
                 pointslope(path, po[i], j, ctr[i], dir[i])
             for i in range(m):
-                d = dir[i].x * dir[i].x + dir[i].y * dir[i].y
+                d = dir[i][0] * dir[i][0] + dir[i][1] * dir[i][1]
                 if d == .0:
                     for j in range(3):
                         for k in range(3):
                             q[i, j, k] = 0
                 else:
-                    v[0] = dir[i].y
-                    v[1] = -dir[i].x
-                    v[2] = -v[1] * ctr[i].y - v[0] * ctr[i].x
+                    v[0] = dir[i][1]
+                    v[1] = -dir[i][0]
+                    v[2] = -v[1] * ctr[i][1] - v[0] * ctr[i][0]
                     for l in range(3):
                         for k in range(3):
                             q[i].data[l, k] = v[l] * v[k] / d
             for i in range(m):
                 Q = np.zeros((3, 3))
-                w = Point(dtype=float)
+                w = np.zeros(2)
 
-                s.x = pt[po[i]].x - x0
-                s.y = pt[po[i]].y - y0
+                s[0] = pt[po[i]][0] - x0
+                s[1] = pt[po[i]][1] - y0
 
                 j = (i - 1) % m
 
@@ -652,8 +533,8 @@ class Potrace:
                 while True:
                     det = Q[0, 0] * Q[1, 1] - Q[0, 1] * Q[1, 0]
                     if det != .0:
-                        w.x = (-Q[0, 2] * Q[1, 1] + Q[1, 2] * Q[0, 1]) / det
-                        w.y = (Q[0, 2] * Q[1, 0] - Q[1, 2] * Q[0, 0]) / det
+                        w[0] = (-Q[0, 2] * Q[1, 1] + Q[1, 2] * Q[0, 1]) / det
+                        w[1] = (Q[0, 2] * Q[1, 0] - Q[1, 2] * Q[0, 0]) / det
                         break
                     if Q[0, 0] > Q[1, 1]:
                         v[0] = -Q[0, 1]
@@ -665,51 +546,51 @@ class Potrace:
                         v[0] = 1
                         v[1] = 0
                     d = v[0] * v[0] + v[1] * v[1]
-                    v[2] = -v[1] * s.y - v[0] * s.x
+                    v[2] = -v[1] * s[1] - v[0] * s[0]
                     for l in range(3):
                         for k in range(3):
                             Q.data[l, k] += v[l] * v[k] / d
-                dx = abs(w.x - s.x)
-                dy = abs(w.y - s.y)
+                dx = abs(w[0] - s[0])
+                dy = abs(w[1] - s[1])
                 if dx <= 0.5 and dy <= 0.5:
-                    path.curve.vertex[i] = Point(w.x + x0, w.y + y0, float)
+                    path.curve.vertex[i] = np.array((w[0] + x0, w[1] + y0))
                     continue
                 min = quadform(Q, s)
-                xmin = s.x
-                ymin = s.y
+                xmin = s[0]
+                ymin = s[1]
 
                 if Q[0, 0] != 0.0:
                     for z in range(2):
-                        w.y = s.y - 0.5 + z
-                        w.x = -(Q[0, 1] * w.y + Q[0, 2]) / Q[0, 0]
-                        dx = abs(w.x - s.x)
+                        w[1] = s[1] - 0.5 + z
+                        w[0] = -(Q[0, 1] * w[1] + Q[0, 2]) / Q[0, 0]
+                        dx = abs(w[0] - s[0])
                         cand = quadform(Q, w)
                         if dx <= 0.5 and cand < min:
                             min = cand
-                            xmin = w.x
-                            ymin = w.y
+                            xmin = w[0]
+                            ymin = w[1]
 
                 if Q[1, 1] != 0.0:
                     for z in range(2):
-                        w.x = s.x - 0.5 + z
-                        w.y = -(Q[1, 0] * w.x + Q[1, 2]) / Q[1, 1]
-                        dy = abs(w.y - s.y)
+                        w[0] = s[0] - 0.5 + z
+                        w[1] = -(Q[1, 0] * w[0] + Q[1, 2]) / Q[1, 1]
+                        dy = abs(w[1] - s[1])
                         cand = quadform(Q, w)
                         if dy <= 0.5 and cand < min:
                             min = cand
-                            xmin = w.x
-                            ymin = w.y
+                            xmin = w[0]
+                            ymin = w[1]
 
                 for l in range(2):
                     for k in range(2):
-                        w.x = s.x - 0.5 + l
-                        w.y = s.y - 0.5 + k
+                        w[0] = s[0] - 0.5 + l
+                        w[1] = s[1] - 0.5 + k
                         cand = quadform(Q, w)
                         if cand < min:
                             min = cand
-                            xmin = w.x
-                            ymin = w.y
-                path.curve.vertex[i] = Point(xmin + x0, ymin + y0, float)
+                            xmin = w[0]
+                            ymin = w[1]
+                path.curve.vertex[i] = np.array((xmin + x0, ymin + y0))
 
         def smooth(path: Path, info: Param):
             m = path.curve.n
@@ -751,7 +632,7 @@ class Potrace:
             @dataclass
             class Opti:
                 pen: float = 0
-                c: List = field(default_factory=lambda: [Point(dtype=float), Point(dtype=float)])
+                c: List = field(default_factory=lambda: [np.zeros(2), np.zeros(2)])
                 t: float = 0
                 s: float = 0
                 alpha: float = 0
@@ -967,54 +848,4 @@ class Potrace:
                 opticurve(path, self.info)
 
     def to_svg(self, output: Union[str, Path], size: float = 1) -> None:
-        def get_svg(size: float = 1., opt_type: str = None) -> str:
-            def to_fixed(x: float, dp: int = 3) -> str:
-                return str(round(x, dp))
-
-            def path(curve: Curve) -> str:
-                def cubic_bezier(curve: Curve, i: int) -> str:
-                    b = 'C ' + to_fixed(curve.c[i, 0].x * size) + ' ' + to_fixed(curve.c[i, 0].y * size) + ','
-                    b += to_fixed(curve.c[i, 1].x * size) + ' ' + to_fixed(curve.c[i, 1].y * size) + ','
-                    b += to_fixed(curve.c[i, 2].x * size) + ' ' + to_fixed(curve.c[i, 2].y * size) + ' '
-                    return b
-
-                def segment(curve: Curve, i: int) -> str:
-                    s = 'L ' + to_fixed(curve.c[i, 1].x * size) + ' ' + to_fixed(curve.c[i, 1].y * size) + ' '
-                    s += to_fixed(curve.c[i, 2].x * size) + ' ' + to_fixed(curve.c[i, 2].y * size) + ' '
-                    return s
-
-                n = curve.n
-                p = 'M' + to_fixed(curve.c[(n - 1), 2].x * size) + ' ' + to_fixed(curve.c[(n - 1), 2].y * size) + ' '
-                for i in range(n):
-                    if curve.tag[i] == SegmentTag.CURVE_TO:
-                        p += cubic_bezier(curve, i)
-                    elif curve.tag[i] == SegmentTag.CORNER:
-                        p += segment(curve, i)
-                return p
-
-            w = self.bm.w * size
-            h = self.bm.h * size
-            svg = '<svg id="svg" version="1.1" width="' + str(w) + '" height="' + str(
-                h) + '" xmlns="http://www.w3.org/2000/svg">'
-            svg += '<path d="'
-            for i in range(len(self.pathlist)):
-                c = self.pathlist[i].curve
-                svg += path(c)
-            strokec: str
-            fillc: str
-            fillrule: str
-            if opt_type == "curve":
-                strokec = "black"
-                fillc = "none"
-                fillrule = ''
-            else:
-                strokec = "none"
-                fillc = "black"
-                fillrule = ' fill-rule="evenodd"'
-            svg += '" stroke="' + strokec + '" fill="' + fillc + '"' + fillrule + '/></svg>'
-            return svg
-
-        with open(output, 'w') as f:
-            f.write(get_svg(size=size))
-
-
+        SVGWriter().write(self.bm, self.pathlist, output, size=size)

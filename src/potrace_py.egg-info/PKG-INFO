@@ -9,10 +9,11 @@ License: UNKNOWN
 Project-URL: Bug Tracker, https://github.com/mahdilamb/potrace_py/issues
 Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
-Classifier: License :: OSI Approved :: MIT License
+Classifier: License :: OSI Approved :: GPL-3.0-or-later
 Classifier: Operating System :: OS Independent
 Requires-Python: >=3.9.6
 Description-Content-Type: text/markdown
+License-File: LICENSE
 
 # potrace_py
 Python port of [Potrace](http://potrace.sourceforge.net/) 
