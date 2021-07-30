@@ -92,28 +92,26 @@ class Path:
 
 class Writer(ABC):
     file_ext: Union[Iterable[str], str] = None
-    _ext_map: Optional[Dict[str, Type['Writer']]] = None
+    __ext_map: Optional[Dict[str, Type['Writer']]] = None
 
-    def __init__(self):
-        Writer._ext_map[self.__class__.file_ext] = self.__class__
-
-    def write(self, bm: Bitmap, pathlist: List[Path], output: Union[str, Path], **kwargs):
+    @staticmethod
+    def write(bm: Bitmap, pathlist: List[Path], output: Union[str, Path], **kwargs):
         raise NotImplementedError()
 
     @classmethod
-    def _find_writers(cls):
-        if cls._ext_map is not None:
+    def __find_writers(cls):
+        if cls.__ext_map is not None:
             return
-        cls._ext_map = {}
+        cls.__ext_map = {}
         for s in cls.__subclasses__():
             if isinstance(s.file_ext, (list, tuple)):
                 for t in s.file_ext:
-                    cls._ext_map[t] = s
+                    cls.__ext_map[t] = s
             else:
-                cls._ext_map[s.file_ext] = s
+                cls.__ext_map[s.file_ext] = s
 
     @classmethod
     def get_writer(cls, output: Union[str, Path]) -> Optional[Type['Writer']]:
-        cls._find_writers()
+        cls.__find_writers()
         _, ext = os.path.splitext(output)
-        return cls._ext_map.get(ext, None)
+        return cls.__ext_map.get(ext, None)

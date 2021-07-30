@@ -207,18 +207,18 @@ class Potrace:
                 return path
 
             bm1: Bitmap = bm.copy()
-            currentPoint: Tuple[int, int] = 0, 0
+            current_point: Tuple[int, int] = 0, 0
             pathlist: List[Path] = []
 
-            while currentPoint is not None:
-                x, y = currentPoint
+            while current_point is not None:
+                x, y = current_point
                 path = findPath(bm, bm1, x, y, info.turnpolicy)
                 xorPath(bm1, path)
                 """plt.imshow(bm1.data)
                 plt.show()"""
                 if path.area > info.turdsize:
                     pathlist.append(path)
-                currentPoint = findNext(bm1, currentPoint)
+                current_point = findNext(bm1, current_point)
             return pathlist
 
         def calc_sums(path: Path) -> None:
@@ -848,4 +848,4 @@ class Potrace:
                 opticurve(path, self.info)
 
     def save(self, output: Union[str, Path], **kwargs) -> None:
-        Writer.get_writer(output)().write(self.bm, self.pathlist, output, **kwargs)
+        Writer.get_writer(output).write(self.bm, self.pathlist, output, **kwargs)
