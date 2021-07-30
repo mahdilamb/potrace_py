@@ -4,7 +4,7 @@ from typing import Tuple, Optional, List, Union, Type
 
 import numpy as np
 
-from src.common import Bitmap, Path, Curve, SegmentTag
+from src.common import Bitmap, Path, Curve, SegmentTag, Writer
 from src.io.svg import SVGWriter
 
 
@@ -847,5 +847,5 @@ class Potrace:
             if self.info.optcurve:
                 opticurve(path, self.info)
 
-    def to_svg(self, output: Union[str, Path], size: float = 1) -> None:
-        SVGWriter().write(self.bm, self.pathlist, output, size=size)
+    def save(self, output: Union[str, Path], **kwargs) -> None:
+        Writer.get_writer(output)().write(self.bm, self.pathlist, output, **kwargs)

@@ -1,7 +1,8 @@
+import os
 from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Union, Tuple
+from typing import Optional, List, Union, Tuple, Dict, Type, Iterable
 
 import numpy as np
 
@@ -90,7 +91,29 @@ class Path:
 
 
 class Writer(ABC):
-    file_ext: str = None
+    file_ext: Union[Iterable[str], str] = None
+    _ext_map: Optional[Dict[str, Type['Writer']]] = None
+
+    def __init__(self):
+        Writer._ext_map[self.__class__.file_ext] = self.__class__
 
     def write(self, bm: Bitmap, pathlist: List[Path], output: Union[str, Path], **kwargs):
         raise NotImplementedError()
+
+    @classmethod
+    def _find_writers(cls):
+        if cls._ext_map is not None:
+            return
+        cls._ext_map = {}
+        for s in cls.__subclasses__():
+            if isinstance(s.file_ext, (list, tuple)):
+                for t in s.file_ext:
+                    cls._ext_map[t] = s
+            else:
+                cls._ext_map[s.file_ext] = s
+
+    @classmethod
+    def get_writer(cls, output: Union[str, Path]) -> Optional[Type['Writer']]:
+        cls._find_writers()
+        _, ext = os.path.splitext(output)
+        return cls._ext_map.get(ext, None)

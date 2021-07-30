@@ -4,6 +4,8 @@ from src.common import Writer, Path, Curve, SegmentTag, Bitmap
 
 
 class SVGWriter(Writer):
+    file_ext = ".svg"
+
     def write(self, bm: Bitmap, pathlist: List[Path], output: Union[str, Path], **kwargs):
         def get_svg(size: float = 1., opt_type: str = None) -> str:
             def to_fixed(x: float, dp: int = 3) -> str:
@@ -55,5 +57,3 @@ class SVGWriter(Writer):
         size: float = kwargs.get("size", 1.)
         with open(output, 'w') as f:
             f.write(get_svg(size=size))
-
-    file_ext = ".svg"
