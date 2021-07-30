@@ -5,7 +5,7 @@ from typing import Tuple, Optional, List, Union, Type
 import numpy as np
 
 from src.common import Bitmap, Path, Curve, SegmentTag, Writer
-
+from src.io.svg import SVGWriter
 
 def cyclic(a: Union[int, float], b: Union[int, float], c: Union[int, float]) -> bool:
     if a <= c:
@@ -36,36 +36,26 @@ def ddenom(p0: np.ndarray, p2: np.ndarray) -> int:
 
 
 def dpara(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray) -> int:
-    x1 = p1[0] - p0[0]
-    y1 = p1[1] - p0[1]
-    x2 = p2[0] - p0[0]
-    y2 = p2[1] - p0[1]
+    x1, y1 = p1 - p0
+    x2, y2 = p2 - p0
     return x1 * y2 - x2 * y1
 
 
 def cprod(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> int:
-    x1: int = p1[0] - p0[0]
-    y1: int = p1[1] - p0[1]
-    x2: int = p3[0] - p2[0]
-    y2: int = p3[1] - p2[1]
-
+    x1, y1 = p1 - p0
+    x2, y2 = p3 - p2
     return x1 * y2 - x2 * y1
 
 
 def iprod(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray) -> int:
-    x1: int = p1[0] - p0[0]
-    y1: int = p1[1] - p0[1]
-    x2: int = p2[0] - p0[0]
-    y2: int = p2[1] - p0[1]
+    x1, y1 = p1 - p0
+    x2, y2 = p2 - p0
     return x1 * x2 + y1 * y2
 
 
 def iprod1(p0: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> int:
-    x1: int = p1[0] - p0[0]
-    y1: int = p1[1] - p0[1]
-    x2: int = p3[0] - p2[0]
-    y2: int = p3[1] - p2[1]
-
+    x1, y1 = p1 - p0
+    x2, y2 = p3 - p2
     return x1 * x2 + y1 * y2
 
 
