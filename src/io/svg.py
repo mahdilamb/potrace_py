@@ -7,7 +7,8 @@ class SVGWriter(Writer):
     file_ext = ".svg"
 
     @classmethod
-    def _get_svg(cls, bm: Bitmap, pathlist: List[Path], size: float = 1., opt_type: str = None) -> str:
+    def _get_svg(cls, bm: Bitmap, pathlist: List[Path], size: float = 1., opt_type: str = None,
+                 color: str = "black") -> str:
         def to_fixed(x: float, dp: int = 3) -> str:
             return str(round(x, dp))
 
@@ -25,38 +26,32 @@ class SVGWriter(Writer):
 
             n = curve.n
             p = 'M' + to_fixed(curve.c[(n - 1), 2][0] * size) + ' ' + to_fixed(curve.c[(n - 1), 2][1] * size) + ' '
-            for i in range(n):
-                if curve.tag[i] == SegmentTag.CURVE_TO:
-                    p += cubic_bezier(curve, i)
-                elif curve.tag[i] == SegmentTag.CORNER:
-                    p += segment(curve, i)
+            p += "".join([cubic_bezier(curve, i) if curve.tag[i] == SegmentTag.CURVE_TO else segment(curve, i) for i in
+                          range(n)])
             return p
 
-        w = bm.w * size
-        h = bm.h * size
-        svg = '<svg id="svg" version="1.1" width="' + str(w) + '" height="' + str(
-            h) + '" xmlns="http://www.w3.org/2000/svg">'
+        w: str = str(bm.w * size)
+        h: str = str(bm.h * size)
+        svg = '<svg id="svg" version="1.1" width="' + w + '" height="' + h + '" xmlns="http://www.w3.org/2000/svg">'
         svg += '<path d="'
-        for i in range(len(pathlist)):
-            c = pathlist[i].curve
-            svg += path(c)
+        svg += "".join([path(p.curve) for p in pathlist])
         strokec: str
         fillc: str
         fillrule: str
         if opt_type == "curve":
-            strokec = "black"
+            strokec = color
             fillc = "none"
             fillrule = ''
         else:
             strokec = "none"
-            fillc = "black"
+            fillc = color
             fillrule = ' fill-rule="evenodd"'
         svg += '" stroke="' + strokec + '" fill="' + fillc + '"' + fillrule + '/></svg>'
         return svg
 
     @staticmethod
     def write(bm: Bitmap, pathlist: List[Path], output: Union[str, Path], **kwargs):
-
         size: float = kwargs.get("size", 1.)
         with open(output, 'w') as f:
-            f.write(SVGWriter._get_svg(bm, pathlist, size=size))
+            f.write(SVGWriter._get_svg(bm, pathlist, size=size, opt_type=kwargs.get("opt_type", None),
+                                       color=kwargs.get("color", "black")))

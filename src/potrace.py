@@ -5,7 +5,6 @@ from typing import Tuple, Optional, List, Union, Type
 import numpy as np
 
 from src.common import Bitmap, Path, Curve, SegmentTag, Writer
-from src.io.svg import SVGWriter
 
 
 def cyclic(a: Union[int, float], b: Union[int, float], c: Union[int, float]) -> bool:
@@ -123,8 +122,8 @@ class Potrace:
         self.bm = Bitmap(img)
         self.info: Param = Param(turdsize, turnpolicy, alphamax, optcurve, opttolerance)
 
-        def bmToPathlist(bm: Bitmap, info: Param) -> List[Path]:
-            def findNext(bm1: Bitmap, point: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        def bm_to_pathlist(bm: Bitmap, info: Param) -> List[Path]:
+            def find_next(bm1: Bitmap, point: Tuple[int, int]) -> Optional[Tuple[int, int]]:
                 x, y = point
                 while y < bm1.h:
                     while x < bm1.w:
@@ -160,7 +159,7 @@ class Potrace:
                             bm1.flip(j, minY)
                         y1 = y
 
-            def findPath(bm: Bitmap, bm1: Bitmap, x0: int, y0: int, turnpolicy: TurnPolicy) -> Path:
+            def find_path(bm: Bitmap, bm1: Bitmap, x0: int, y0: int, turnpolicy: TurnPolicy) -> Path:
                 x: int = x0
                 y: int = y0
                 path: Path = Path()
@@ -212,11 +211,11 @@ class Potrace:
 
             while current_point is not None:
                 x, y = current_point
-                path = findPath(bm, bm1, x, y, info.turnpolicy)
+                path = find_path(bm, bm1, x, y, info.turnpolicy)
                 xorPath(bm1, path)
                 if path.area > info.turdsize:
                     pathlist.append(path)
-                current_point = findNext(bm1, current_point)
+                current_point = find_next(bm1, current_point)
             return pathlist
 
         def calc_sums(path: Path) -> None:
@@ -236,7 +235,7 @@ class Potrace:
             nc = np.zeros(n, dtype=int)
             ct = np.zeros(4, dtype=int)
             path.lon = np.zeros(n)
-            constraint = [np.zeros((2)), np.zeros((2))]
+            constraint = [np.zeros(2), np.zeros(2)]
             cur = 0, 0
             off = 0, 0
             dk = 0, 0
@@ -782,7 +781,7 @@ class Potrace:
 
                 i = j - 2
                 while i >= 0:
-                    r = opti_penalty(path, i, (j) % m, o, info.opttolerance, convc,
+                    r = opti_penalty(path, i, j % m, o, info.opttolerance, convc,
                                      areac)
                     if r:
                         break
@@ -802,22 +801,22 @@ class Potrace:
             i = om - 1
             while i >= 0:
                 if pt[j] == j - 1:
-                    ocurve.tag[i] = curve.tag[(j) % m]
-                    ocurve.c[i, 0] = curve.c[(j) % m, 0]
-                    ocurve.c[i, 1] = curve.c[(j) % m, 1]
-                    ocurve.c[i, 2] = curve.c[(j) % m, 2]
-                    ocurve.vertex[i] = curve.vertex[(j) % m]
-                    ocurve.alpha[i] = curve.alpha[(j) % m]
-                    ocurve.alpha0[i] = curve.alpha0[(j) % m]
-                    ocurve.beta[i] = curve.beta[(j) % m]
+                    ocurve.tag[i] = curve.tag[j % m]
+                    ocurve.c[i, 0] = curve.c[j % m, 0]
+                    ocurve.c[i, 1] = curve.c[j % m, 1]
+                    ocurve.c[i, 2] = curve.c[j % m, 2]
+                    ocurve.vertex[i] = curve.vertex[j % m]
+                    ocurve.alpha[i] = curve.alpha[j % m]
+                    ocurve.alpha0[i] = curve.alpha0[j % m]
+                    ocurve.beta[i] = curve.beta[j % m]
                     s[i] = t[i] = 1.0
                 else:
                     ocurve.tag[i] = SegmentTag.CURVE_TO
                     ocurve.c[i, 0] = opt[j].c[0]
                     ocurve.c[i, 1] = opt[j].c[1]
-                    ocurve.c[i, 2] = curve.c[(j) % m, 2]
-                    ocurve.vertex[i] = interval(opt[j].s, curve.c[(j) % m, 2],
-                                                vert[(j) % m])
+                    ocurve.c[i, 2] = curve.c[j % m, 2]
+                    ocurve.vertex[i] = interval(opt[j].s, curve.c[j % m, 2],
+                                                vert[j % m])
                     ocurve.alpha[i] = opt[j].alpha
                     ocurve.alpha0[i] = opt[j].alpha
                     s[i] = opt[j].s
@@ -831,7 +830,7 @@ class Potrace:
             ocurve.alphacurve = 1
             path.curve = ocurve
 
-        self.pathlist = bmToPathlist(self.bm, self.info)
+        self.pathlist = bm_to_pathlist(self.bm, self.info)
 
         for path in self.pathlist:
             calc_sums(path)
