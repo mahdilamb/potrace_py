@@ -214,8 +214,6 @@ class Potrace:
                 x, y = current_point
                 path = findPath(bm, bm1, x, y, info.turnpolicy)
                 xorPath(bm1, path)
-                """plt.imshow(bm1.data)
-                plt.show()"""
                 if path.area > info.turdsize:
                     pathlist.append(path)
                 current_point = findNext(bm1, current_point)
