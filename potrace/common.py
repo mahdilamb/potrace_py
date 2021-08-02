@@ -1,10 +1,30 @@
-import os
-from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Union, Tuple, Dict, Type, Iterable
+from typing import Optional, List
 
 import numpy as np
+
+
+class TurnPolicy(Enum):
+    BLACK: int = 0
+    WHITE: int = 1
+    LEFT: int = 2
+    RIGHT: int = 3
+    MINORITY: int = 4
+    MAJORITY: int = 5
+
+    def __str__(self):
+        return self.name.lower()
+
+    def __repr__(self):
+        return self.__str__()
+
+    @staticmethod
+    def argparse(s):
+        try:
+            return TurnPolicy[s.upper()]
+        except KeyError:
+            return s
 
 
 class SegmentTag(Enum):
@@ -36,15 +56,6 @@ class Bitmap:
     def at(self, x: int, y: int) -> bool:
         return self.range_check(x, y) and self.data[y, x]
 
-    def index(self, i: int) -> Tuple[int, int]:
-        y: int = int(i / self.w)
-        return i - y * self.w, y
-
-    def flip(self, x: int, y: int) -> None:
-        if not self.range_check(x, y):
-            return
-        self.data[y, x] = ~ self.data[y, x]
-
     def copy(self) -> 'Bitmap':
         return Bitmap(self.data.copy(), check_input=False)
 
@@ -74,12 +85,9 @@ class Path:
     area: int = 0
     sign: int = 0
     pt: List[np.ndarray] = field(default_factory=list)
-    x0: int = -1
-    y0: int = -1
-    minX: int = 100000
-    minY: int = 100000
-    maxX: int = -1
-    maxY: int = -1
+    origin: np.ndarray = field(default_factory=lambda: np.zeros(2, dtype=int))
+    min: int = field(default_factory=lambda: np.array((100000, 100000), dtype=int))
+    max: int = field(default_factory=lambda: np.array((-1, -1), dtype=int))
     sums: Optional[np.ndarray] = None
     lon: Optional[np.ndarray] = None
     po: Optional[np.ndarray] = None
@@ -88,30 +96,3 @@ class Path:
 
     def __len__(self):
         return len(self.pt)
-
-
-class Writer(ABC):
-    file_ext: Union[Iterable[str], str] = None
-    __ext_map: Optional[Dict[str, Type['Writer']]] = None
-
-    @staticmethod
-    def write(bm: Bitmap, pathlist: List[Path], output: Union[str, Path], **kwargs):
-        raise NotImplementedError()
-
-    @classmethod
-    def __find_writers(cls):
-        if cls.__ext_map is not None:
-            return
-        cls.__ext_map = {}
-        for s in cls.__subclasses__():
-            if isinstance(s.file_ext, (list, tuple)):
-                for t in s.file_ext:
-                    cls.__ext_map[t] = s
-            else:
-                cls.__ext_map[s.file_ext] = s
-
-    @classmethod
-    def get_writer(cls, output: Union[str, Path]) -> Optional[Type['Writer']]:
-        cls.__find_writers()
-        _, ext = os.path.splitext(output)
-        return cls.__ext_map.get(ext, None)

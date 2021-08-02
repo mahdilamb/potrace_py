@@ -1,5 +1,5 @@
-from src.potrace import Potrace
+from potrace.potrace import potrace
 from skimage.io import imread
 
 if __name__ == "__main__":
-    Potrace(imread("imgs/smiley.png")).save("result/smiley.svg")
+    potrace(imread("imgs/yao.jpg"), output="result/yao.svg")

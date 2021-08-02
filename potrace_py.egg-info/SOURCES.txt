@@ -1,0 +1,12 @@
+README.md
+setup.py
+potrace/__init__.py
+potrace/common.py
+potrace/io.py
+potrace/potrace.py
+potrace_py.egg-info/PKG-INFO
+potrace_py.egg-info/SOURCES.txt
+potrace_py.egg-info/dependency_links.txt
+potrace_py.egg-info/requires.txt
+potrace_py.egg-info/top_level.txt
+test/test.py
