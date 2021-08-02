@@ -19,10 +19,23 @@ parser.add_argument('--opttolerance', '-O', type=float, help="curve optimization
 if __name__ == "__main__":
     from skimage.io import imread
 
-    args = parser.parse_args()
-    for filename in args.filename:
+
+    def _trace(filename: str, args: argparse.Namespace, output: str):
         potrace.potrace(imread(filename),
-                        output=str(args.output if args.output is not None else filename) + "." + args.backend,
+                        output=output,
                         turdsize=args.turdsize,
                         turnpolicy=args.turnpolicy, alphamax=args.alphamax, optcurve=args.longcurve,
                         opttolerance=args.opttolerance)
+
+
+    args = parser.parse_args()
+    if len(args.output) == 1 and len(args.filename) != 1:
+        for filename in args.filename:
+            _trace(filename, args,
+                   "{file}{suffix}".format(file=filename, suffix=args.output[0]))
+    elif len(args.output) == len(args.filename):
+        for filename, output in zip(args.filename, args.ouput):
+            _trace(filename, args, output)
+    else:
+        for filename in args.filename:
+            _trace(filename, args, "{file}.{ext}".format(file=filename, ext=args.backend))

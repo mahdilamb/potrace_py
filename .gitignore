@@ -1,3 +1,4 @@
 /dist/
 /UNKNOWN.egg-info/
 /.idea/
+/potrace/potrace_py.egg-info/
