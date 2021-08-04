@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, IntEnum, auto, unique
 from typing import Optional, List
 
 import numpy as np
 
 
-class TurnPolicy(Enum):
+@unique
+class TurnPolicy(IntEnum):
     BLACK: int = 0
     WHITE: int = 1
     LEFT: int = 2
@@ -27,9 +28,10 @@ class TurnPolicy(Enum):
             return s
 
 
+@unique
 class SegmentTag(Enum):
-    CURVE_TO: int = 1
-    CORNER: int = 2
+    CURVE_TO: int = auto()
+    CORNER: int = auto()
 
 
 _rgb_gray_scale: np.ndarray = np.asarray([0.2126, 0.7153, 0.0721])
